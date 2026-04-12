@@ -82,7 +82,7 @@ if __name__ == "__main__":
     from highrise import BotRunner
     
     # Secrets se Token/ID uthana (Replit Settings mein TOKEN aur ROOM_ID banayein)
-    room_id_code = os.environ.get('ROOM_ID', "69dbf0f3531fbf6ff18748e5")
+    room_id_code = os.environ.get('ROOM_ID', "69325fc85be7bfe87e2a172a")
     api_token_key = os.environ.get('TOKEN', "34f2f04114d5960cd18ef59fedd63ccb6572fd5658693a9d02cd9c9ce1e27799")
 
     keep_alive() # Server start
