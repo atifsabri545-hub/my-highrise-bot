@@ -191,6 +191,6 @@ if __name__ == "__main__":
 
     BotRunner(
         bot,
-        room_id="69dbcc35472c2d9ca26654cd",
-        auth_token="50ffcb2b330efc2704eb35bc9ab6ab320bf790b3a78ec6a85a4af0aadf557318"
+        room_id="69dbd9136914482a543c2649",
+        auth_token="992c530b3c235f1fe13784b07f9bb88e1f42a2dc793d065e64c021e1f41e0d5a"
     ).run()
