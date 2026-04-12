@@ -1,1 +1,3 @@
 highrise-sdk
+highrise-bot-sdk
+flask
