@@ -21,7 +21,7 @@ class MyBot(BaseBot):
         self.owner = "The_Cobra_King"
         self.admins = ["The_Cobra_King"]
         self.frozen_users = set()
-        self.user_positions = {} # Sabki current position yahan save hogi
+        self.user_positions = {} 
         
         self.public_floors = {
             "f1": Position(0, 0, 0),
@@ -32,10 +32,10 @@ class MyBot(BaseBot):
     async def on_start(self, session_metadata: SessionMetadata):
         print(f"✅ Bot Started for {self.owner}")
 
-    # --- 📍 LIVE TRACKING (Crash se bachane ke liye) ---
     async def on_user_move(self, user: User, pos: Position):
-        self.user_positions[user.username] = pos # Har bande ki jagah yaad rakho
+        self.user_positions[user.username] = pos 
         if user.username in self.frozen_users:
+            # Agar frozen hai toh wapis usi purani jagah phenk do
             await self.highrise.teleport(user.id, pos)
 
     async def on_chat(self, user: User, message: str):
@@ -57,45 +57,54 @@ class MyBot(BaseBot):
                 if target in self.public_floors:
                     if user.username in self.user_positions:
                         self.public_floors[target] = self.user_positions[user.username]
-                        await self.highrise.send_chat(f"📍 Location '{target}' saved successfully! ✅")
+                        # Fix: send_chat ki jagah self.highrise.chat use kiya
+                        await self.highrise.chat(f"📍 Location '{target}' saved successfully! ✅")
                     else:
-                        await self.highrise.send_chat("⚠️ Ek baar hil kar dikhao taake bot position detect kar sake!")
+                        await self.highrise.chat("⚠️ Ek baar hil kar dikhao taake bot position detect kar sake!")
 
             # --- FREEZE/UNFREEZE ---
             elif msg.startswith("!freeze"):
                 p = message.split("@")
                 if len(p) > 1:
-                    self.frozen_users.add(p[1].strip())
-                    await self.highrise.send_chat(f"❄️ @{p[1].strip()} Frozen!")
+                    victim = p[1].strip()
+                    self.frozen_users.add(victim)
+                    await self.highrise.chat(f"❄️ @{victim} Frozen!")
 
             elif msg.startswith("!unfreeze"):
                 p = message.split("@")
                 if len(p) > 1:
-                    self.frozen_users.discard(p[1].strip())
-                    await self.highrise.send_chat(f"🔥 @{p[1].strip()} Unfrozen!")
+                    victim = p[1].strip()
+                    self.frozen_users.discard(victim)
+                    await self.highrise.chat(f"🔥 @{victim} Unfrozen!")
 
             # --- BAN/UNBAN/KICK ---
             elif msg.startswith("!ban"):
                 p = message.split("@")
                 if len(p) > 1:
                     await self.highrise.moderate_user(p[1].strip(), "ban", 86400)
+                    await self.highrise.chat(f"🔨 @{p[1].strip()} Banned!")
             
             elif msg.startswith("!unban"):
                 p = message.split()
                 if len(p) > 1:
-                    await self.highrise.moderate_user(p[1].replace("@",""), "unban", 0)
+                    name = p[1].replace("@","")
+                    await self.highrise.moderate_user(name, "unban", 0)
+                    await self.highrise.chat(f"🔓 @{name} Unbanned!")
 
             elif msg.startswith("!kick"):
                 p = message.split("@")
                 if len(p) > 1:
                     await self.highrise.kick_user(p[1].strip())
+                    await self.highrise.chat(f"👞 @{p[1].strip()} Kicked!")
 
             # --- ADMIN ADD ---
             elif msg.startswith("!add admin"):
                 p = message.split("@")
                 if len(p) > 1:
-                    self.admins.append(p[1].strip())
-                    await self.highrise.send_chat(f"🎊 @{p[1].strip()} is now Admin!")
+                    new_adm = p[1].strip()
+                    if new_adm not in self.admins:
+                        self.admins.append(new_adm)
+                        await self.highrise.chat(f"🎊 @{new_adm} is now Admin! 👑")
 
 # --- 🚀 RUN ---
 if __name__ == "__main__":
