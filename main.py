@@ -5,30 +5,24 @@ from threading import Thread
 from highrise import BaseBot, Position
 from highrise.models import SessionMetadata, User
 
-# --- 🌐 24/7 SERVER SETUP (Flask) ---
+# --- 🌐 SERVER ---
 app = Flask('')
 @app.route('/')
-def home():
-    return "Bot is Online! ✅"
-
-def run_server():
-    app.run(host='0.0.0.0', port=8080)
+def home(): return "Bot is Online! ✅"
 
 def keep_alive():
-    t = Thread(target=run_server)
+    t = Thread(target=lambda: app.run(host='0.0.0.0', port=8080))
     t.daemon = True
     t.start()
 
-# --- 🤖 HIGHRISE BOT CLASS ---
 class MyBot(BaseBot):
     def __init__(self):
         super().__init__()
-        # 👑 OWNER & ADMINS
-        self.owner = "The_Cobra_King" # Apna sahi username likhein
-        self.admins = ["The_Cobra_King"] 
+        self.owner = "The_Cobra_King"
+        self.admins = ["The_Cobra_King"]
         self.frozen_users = set()
+        self.user_positions = {} # Sabki current position yahan save hogi
         
-        # 📍 TELEPORT POSITIONS
         self.public_floors = {
             "f1": Position(0, 0, 0),
             "f2": Position(0, 0, 0),
@@ -36,99 +30,77 @@ class MyBot(BaseBot):
         }
 
     async def on_start(self, session_metadata: SessionMetadata):
-        print(f"✅ Bot is now Online in Highrise!")
+        print(f"✅ Bot Started for {self.owner}")
 
-    # --- ❄️ FREEZE PROTECTION ---
+    # --- 📍 LIVE TRACKING (Crash se bachane ke liye) ---
     async def on_user_move(self, user: User, pos: Position):
+        self.user_positions[user.username] = pos # Har bande ki jagah yaad rakho
         if user.username in self.frozen_users:
-            if isinstance(pos, Position):
-                await self.highrise.teleport(user.id, Position(pos.x, pos.y, pos.z))
+            await self.highrise.teleport(user.id, pos)
 
     async def on_chat(self, user: User, message: str):
-        msg_lower = message.lower()
+        msg = message.lower()
 
-        # 🚀 TELEPORT (Sab ke liye)
-        if msg_lower in self.public_floors:
-            target_pos = self.public_floors[msg_lower]
-            if target_pos.x != 0 or target_pos.y != 0:
-                await self.highrise.teleport(user.id, target_pos)
-            else:
-                await self.highrise.send_chat(f"❌ {msg_lower} ki position set nahi hai.")
+        # 🚀 TELEPORT
+        if msg in self.public_floors:
+            p = self.public_floors[msg]
+            if p.x != 0 or p.y != 0:
+                await self.highrise.teleport(user.id, p)
             return
 
-        # 👑 ADMIN & MODERATION (Only for Admins)
+        # 👑 ADMIN COMMANDS
         if user.username in self.admins:
             
-            # --- SET TELEPORT ---
-            if msg_lower.startswith("!set "):
-                target = msg_lower.replace("!set ", "").strip()
+            # --- SAFE SET POSITION ---
+            if msg.startswith("!set "):
+                target = msg.replace("!set ", "").strip()
                 if target in self.public_floors:
-                    room_users = await self.highrise.get_room_users()
-                    for room_user, position in room_users.content:
-                        if room_user.id == user.id:
-                            self.public_floors[target] = position
-                            await self.highrise.send_chat(f"📍 Location '{target}' set ho gayi hai! ✅")
-                            break
+                    if user.username in self.user_positions:
+                        self.public_floors[target] = self.user_positions[user.username]
+                        await self.highrise.send_chat(f"📍 Location '{target}' saved successfully! ✅")
+                    else:
+                        await self.highrise.send_chat("⚠️ Ek baar hil kar dikhao taake bot position detect kar sake!")
 
             # --- FREEZE/UNFREEZE ---
-            elif msg_lower.startswith("!freeze"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    victim = parts[1].strip()
-                    self.frozen_users.add(victim)
-                    await self.highrise.send_chat(f"❄️ @{victim} ko freeze kar diya gaya!")
+            elif msg.startswith("!freeze"):
+                p = message.split("@")
+                if len(p) > 1:
+                    self.frozen_users.add(p[1].strip())
+                    await self.highrise.send_chat(f"❄️ @{p[1].strip()} Frozen!")
 
-            elif msg_lower.startswith("!unfreeze"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    victim = parts[1].strip()
-                    self.frozen_users.discard(victim)
-                    await self.highrise.send_chat(f"🔥 @{victim} ab hil sakta hai.")
+            elif msg.startswith("!unfreeze"):
+                p = message.split("@")
+                if len(p) > 1:
+                    self.frozen_users.discard(p[1].strip())
+                    await self.highrise.send_chat(f"🔥 @{p[1].strip()} Unfrozen!")
 
-            # --- BAN/UNBAN ---
-            elif msg_lower.startswith("!ban"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    victim = parts[1].strip()
-                    await self.highrise.moderate_user(victim, "ban", 86400)
-                    await self.highrise.send_chat(f"🔨 @{victim} ko BAN kar diya gaya!")
+            # --- BAN/UNBAN/KICK ---
+            elif msg.startswith("!ban"):
+                p = message.split("@")
+                if len(p) > 1:
+                    await self.highrise.moderate_user(p[1].strip(), "ban", 86400)
+            
+            elif msg.startswith("!unban"):
+                p = message.split()
+                if len(p) > 1:
+                    await self.highrise.moderate_user(p[1].replace("@",""), "unban", 0)
 
-            elif msg_lower.startswith("!unban"):
-                parts = message.split()
-                if len(parts) > 1:
-                    target_name = parts[1].replace("@", "").strip()
-                    await self.highrise.moderate_user(target_name, "unban", 0)
-                    await self.highrise.send_chat(f"🔓 @{target_name} ko unban kar diya!")
+            elif msg.startswith("!kick"):
+                p = message.split("@")
+                if len(p) > 1:
+                    await self.highrise.kick_user(p[1].strip())
 
-            # --- KICK ---
-            elif msg_lower.startswith("!kick"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    victim = parts[1].strip()
-                    await self.highrise.kick_user(victim)
-                    await self.highrise.send_chat(f"👞 @{victim} ko kick kar diya!")
+            # --- ADMIN ADD ---
+            elif msg.startswith("!add admin"):
+                p = message.split("@")
+                if len(p) > 1:
+                    self.admins.append(p[1].strip())
+                    await self.highrise.send_chat(f"🎊 @{p[1].strip()} is now Admin!")
 
-            # --- ADD/REMOVE ADMIN ---
-            elif msg_lower.startswith("!add admin"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    new_admin = parts[1].strip()
-                    if new_admin not in self.admins:
-                        self.admins.append(new_admin)
-                        await self.highrise.send_chat(f"🎊 Congratulations @{new_admin}! You are now an Admin! 👑")
-
-            elif msg_lower.startswith("!remove admin"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    target = parts[1].strip()
-                    if target != self.owner:
-                        self.admins.remove(target)
-                        await self.highrise.send_chat(f"🚫 @{target} se admin powers le li gayi hain.")
-
-# --- 🚀 RUNNER ---
+# --- 🚀 RUN ---
 if __name__ == "__main__":
     from highrise import BotRunner
-    # Replit Secrets use karein ya direct value likhein
-    room_id_code = os.environ.get('ROOM_ID', "69325fc85be7bfe87e2a172a")
-    api_token_key = os.environ.get('TOKEN', "b2989167e26d62f0fe26e2f35250f554ab507e5fddfd07ccc1130a3c4a120bf9")
-
+    r_id = os.environ.get('ROOM_ID', "69325fc85be7bfe87e2a172a")
+    token = os.environ.get('TOKEN', "b2989167e26d62f0fe26e2f35250f554ab507e5fddfd07ccc1130a3c4a120bf9")
+    keep_alive()
+    BotRunner(MyBot(), room_id=r_id, auth_token=token).run()
