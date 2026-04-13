@@ -130,5 +130,5 @@ if __name__ == "__main__":
     from highrise import BotRunner
     # Replit Secrets use karein ya direct value likhein
     room_id_code = os.environ.get('ROOM_ID', "69325fc85be7bfe87e2a172a")
-    api_token_key = os.environ.get('TOKEN', "34f2f04114d5960cd18ef59fedd63ccb6572fd5658693a9d02cd9c9ce1e27799")
+    api_token_key = os.environ.get('TOKEN', "b2989167e26d62f0fe26e2f35250f554ab507e5fddfd07ccc1130a3c4a120bf9")
 
