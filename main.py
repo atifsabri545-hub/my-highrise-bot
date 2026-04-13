@@ -24,8 +24,8 @@ class MyBot(BaseBot):
     def __init__(self):
         super().__init__()
         # 👑 OWNER & ADMINS
-        self.owner = "The_Corba_King" # Apna sahi username likhein
-        self.admins = ["The_Corba_King"] 
+        self.owner = "The_Cobra_King" # Apna sahi username likhein
+        self.admins = ["The_Cobra_King"] 
         self.frozen_users = set()
         
         # 📍 TELEPORT POSITIONS
