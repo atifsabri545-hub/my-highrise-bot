@@ -30,7 +30,7 @@ class MyBot(BaseBot):
         }
 
     async def on_start(self, session_metadata: SessionMetadata):
-        print(f"✅ Bot Started for {self.owner}!")
+        print(f"✅ Bot Started! Owner: {self.owner}")
 
     async def on_user_move(self, user: User, pos: Position):
         self.user_positions[user.username] = pos 
@@ -40,71 +40,72 @@ class MyBot(BaseBot):
     async def on_chat(self, user: User, message: str):
         msg = message.lower().strip()
 
-        # 👑 ADMIN COMMANDS ONLY
+        # 👑 ADMIN COMMANDS
         if user.username in self.admins:
             
-            # --- 🔨 BAN COMMAND (3600 DAYS) ---
+            # --- 🔨 3600 DAYS BAN ---
             if msg.startswith("!ban"):
                 parts = message.split("@")
                 if len(parts) > 1:
                     victim = parts[1].strip()
                     try:
-                        # 3600 days in seconds = 311,040,000
-                        ban_time = 3600 * 24 * 60 * 60 
-                        await self.highrise.moderate_user(victim, "ban", ban_time)
-                        await self.highrise.chat(f"🔨 @{victim} ko 3600 dino ke liye BAN kar diya gaya! Bye bye.")
+                        # 3600 days = 311040000 seconds
+                        ban_seconds = 3600 * 24 * 60 * 60 
+                        await self.highrise.moderate_user(victim, "ban", ban_seconds)
+                        await self.highrise.chat(f"🔨 @{victim} ko 3600 dino ke liye BAN kar diya gaya!")
                     except Exception as e:
-                        await self.highrise.chat(f"❌ Ban fail: Bot ke paas permissions nahi hain.")
-                        print(f"Ban Error: {e}")
+                        await self.highrise.chat(f"❌ Error: Bot ko moderator banayein!")
 
-            # --- 🔓 UNBAN COMMAND (FIXED) ---
+            # --- 🔓 UNBAN ---
             elif msg.startswith("!unban"):
-                # Format: !unban username (bina @ ke bhi kaam karega)
                 parts = message.split()
                 if len(parts) > 1:
-                    target_name = parts[1].replace("@", "").strip()
+                    name = parts[1].replace("@","").strip()
                     try:
-                        await self.highrise.moderate_user(target_name, "unban", 0)
-                        await self.highrise.chat(f"🔓 @{target_name} ko unban kar diya gaya hai. Wo ab wapis aa sakta hai.")
-                    except Exception as e:
-                        await self.highrise.chat(f"❌ Unban fail: Username check karein.")
-                        print(f"Unban Error: {e}")
+                        await self.highrise.moderate_user(name, "unban", 0)
+                        await self.highrise.chat(f"🔓 @{name} Unbanned!")
+                    except:
+                        await self.highrise.chat(f"❌ Unban nahi ho saka.")
 
-            # --- 👞 KICK COMMAND ---
+            # --- 👞 KICK (Sahi Command) ---
             elif msg.startswith("!kick"):
                 parts = message.split("@")
                 if len(parts) > 1:
                     victim = parts[1].strip()
                     try:
+                        # Highrise mein kick ke liye ye command best hai
                         await self.highrise.moderate_user(victim, "kick")
-                        await self.highrise.chat(f"👞 @{victim} Kicked!")
-                    except Exception as e:
-                        print(f"Kick Error: {e}")
+                        await self.highrise.chat(f"👞 @{victim} ko kick kar diya!")
+                    except:
+                        # Agar kick kaam na kare toh 1 min ban (auto-kick)
+                        try:
+                            await self.highrise.moderate_user(victim, "ban", 60)
+                            await self.highrise.chat(f"👞 @{victim} kicked via short-ban!")
+                        except:
+                            await self.highrise.chat(f"❌ Bot ke paas kick power nahi hai!")
 
             # --- ❄️ FREEZE / UNFREEZE ---
             elif msg.startswith("!freeze"):
                 parts = message.split("@")
                 if len(parts) > 1:
-                    victim = parts[1].strip()
-                    if victim in self.user_positions:
-                        self.frozen_users[victim] = self.user_positions[victim]
-                        await self.highrise.chat(f"❄️ @{victim} Frozen!")
+                    v = parts[1].strip()
+                    if v in self.user_positions:
+                        self.frozen_users[v] = self.user_positions[v]
+                        await self.highrise.chat(f"❄️ @{v} Frozen!")
 
             elif msg.startswith("!unfreeze"):
                 parts = message.split("@")
                 if len(parts) > 1:
-                    victim = parts[1].strip()
-                    if victim in self.frozen_users:
-                        del self.frozen_users[victim]
-                        await self.highrise.chat(f"🔥 @{victim} Unfrozen!")
+                    v = parts[1].strip()
+                    self.frozen_users.pop(v, None)
+                    await self.highrise.chat(f"🔥 @{v} Unfrozen!")
 
-            # --- 📍 SET TELEPORT ---
+            # --- 📍 SET POSITION ---
             elif msg.startswith("!set "):
                 target = msg.replace("!set ", "").strip()
-                if target in self.public_floors:
-                    if user.username in self.user_positions:
-                        self.public_floors[target] = self.user_positions[user.username]
-                        await self.highrise.chat(f"📍 '{target}' set successfully!")
+                if target in self.public_floors and user.username in self.user_positions:
+                    self.public_floors[target] = self.user_positions[user.username]
+                    await self.highrise.chat(f"📍 '{target}' set ho gaya!")
 
 # --- 🚀 RUNNER ---
 if __name__ == "__main__":
