@@ -1,15 +1,13 @@
-import os
-import json
-import asyncio
+import os, json, asyncio
 from flask import Flask
 from threading import Thread
 from highrise import BaseBot, Position
 from highrise.models import SessionMetadata, User
 
-# --- 🌐 SERVER SETUP (24/7) ---
+# --- 🌐 SERVER (24/7) ---
 app = Flask('')
 @app.route('/')
-def home(): return "Cobra King Bot is Online! ✅"
+def home(): return "Bot is Online! ✅"
 
 def keep_alive():
     t = Thread(target=lambda: app.run(host='0.0.0.0', port=8080))
@@ -22,12 +20,10 @@ class MyBot(BaseBot):
         self.owner = "The_Cobra_King"
         self.filename = "admins.json"
         self.loc_file = "locations.json"
-        self.vip_file = "vips.json"
         
-        # Permanent Data Load
+        # Load Permanent Data
         self.admins = self.load_data(self.filename, [self.owner])
-        self.vips = self.load_data(self.vip_file, [])
-        self.locations = self.load_data(self.loc_file, {"f1": None, "f2": None, "f3": None, "admin_area": None, "vip_area": None})
+        self.locations = self.load_data(self.loc_file, {"f1": None, "f2": None, "f3": None, "admin_area": None})
         
         self.user_positions = {}
         self.frozen_users = {}
@@ -56,119 +52,109 @@ class MyBot(BaseBot):
         print(f"✅ Bot Started! Master: {self.owner}")
 
     async def on_user_move(self, user: User, pos: Position):
-        self.user_positions[user.username] = pos
+        self.user_positions[user.id] = (user.username, pos)
         
-        # ❄️ FREEZE CHECK
         if user.username in self.frozen_users:
             await self.highrise.teleport(user.id, self.frozen_users[user.username])
             return
 
-        # 🛡️ GUARD SYSTEM (Whisper/DM Warning)
         if self.locations["admin_area"] and user.username not in self.admins:
-            dist = ((pos.x - self.locations["admin_area"].x)**2 + (pos.z - self.locations["admin_area"].z)**2)**0.5
+            a_pos = self.locations["admin_area"]
+            dist = ((pos.x - a_pos.x)**2 + (pos.z - a_pos.z)**2)**0.5
             if dist < 1.5:
                 await self.highrise.send_whisper(user.id, f"@{user.username} you are not admin 🚫")
 
     async def on_chat(self, user: User, message: str):
         msg = message.lower().strip()
 
-        # --- 🌍 PUBLIC COMMANDS (Sab ke liye) ---
+        # --- 🌍 PUBLIC ---
         if msg in ["f1", "f2", "f3"]:
             target = self.locations.get(msg)
-            if target: 
-                await self.highrise.teleport(user.id, target)
+            if target: await self.highrise.teleport(user.id, target)
             return
 
-        # --- 👑 ADMIN & OWNER COMMANDS ---
+        # --- 👑 ADMIN ONLY ---
         if user.username in self.admins:
-            
-            # 🔨 MODERATION (FIXED CRASH)
-            if msg.startswith("!kick"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    victim_name = parts[1].strip()
+            try:
+                # 🔨 MODERATION
+                if msg.startswith("!kick"):
+                    target_user = msg.split("@")[-1].strip()
                     room_users = await self.highrise.get_room_users()
-                    target = next((u for u, p in room_users.content if u.username.lower() == victim_name.lower()), None)
-                    if target:
-                        await self.highrise.kick_user(target.id)
-                        await self.highrise.chat(f"👞 @{victim_name} ko kick kar diya!")
+                    for u, p in room_users.content:
+                        if u.username.lower() == target_user.lower():
+                            await self.highrise.kick_user(u.id)
+                            await self.highrise.chat(f"👞 @{u.username} kicked!")
+                            break
 
-            elif msg.startswith("!mute"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    victim_name = parts[1].strip()
+                elif msg.startswith("!mute"):
+                    target_user = msg.split("@")[-1].strip()
                     room_users = await self.highrise.get_room_users()
-                    target = next((u for u, p in room_users.content if u.username.lower() == victim_name.lower()), None)
-                    if target:
-                        await self.highrise.mute_user(target.id, 1800) # 30 mins
-                        await self.highrise.chat(f"🔇 @{victim_name} muted for 30m")
+                    for u, p in room_users.content:
+                        if u.username.lower() == target_user.lower():
+                            await self.highrise.mute_user(u.id, 1800)
+                            await self.highrise.chat(f"🔇 @{u.username} muted 30m")
+                            break
 
-            elif msg.startswith("!unmute"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    victim_name = parts[1].strip()
-                    room_users = await self.highrise.get_room_users()
-                    target = next((u for u, p in room_users.content if u.username.lower() == victim_name.lower()), None)
-                    if target:
-                        await self.highrise.mute_user(target.id, 1)
-                        await self.highrise.chat(f"🔊 @{victim_name} unmuted")
+                # ❄️ FREEZE
+                elif msg.startswith("!freeze"):
+                    target_user = msg.split("@")[-1].strip()
+                    for uid, (uname, upos) in self.user_positions.items():
+                        if uname.lower() == target_user.lower():
+                            self.frozen_users[uname] = upos
+                            await self.highrise.chat(f"❄️ @{uname} Frozen!")
+                            break
 
-            # ❄️ FREEZE/UNFREEZE
-            elif msg.startswith("!freeze"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    v = parts[1].strip()
-                    if v in self.user_positions:
-                        self.frozen_users[v] = self.user_positions[v]
-                        await self.highrise.chat(f"❄️ @{v} Frozen!")
-
-            elif msg.startswith("!unfreeze"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    self.frozen_users.pop(parts[1].strip(), None)
+                elif msg.startswith("!unfreeze"):
+                    target_user = msg.split("@")[-1].strip()
+                    self.frozen_users.pop(target_user, None)
                     await self.highrise.chat(f"🔥 Unfrozen!")
 
-            # 🚀 BRING
-            elif msg.startswith("!bring"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    target_name = parts[1].strip()
-                    if user.username in self.user_positions:
+                # 🚀 BRING
+                elif msg.startswith("!bring"):
+                    target_user = msg.split("@")[-1].strip()
+                    admin_pos = None
+                    for uid, (uname, upos) in self.user_positions.items():
+                        if uname == user.username: admin_pos = upos
+                    
+                    if admin_pos:
                         room_users = await self.highrise.get_room_users()
-                        target = next((u for u, p in room_users.content if u.username.lower() == target_name.lower()), None)
-                        if target: await self.highrise.teleport(target.id, self.user_positions[user.username])
+                        for u, p in room_users.content:
+                            if u.username.lower() == target_user.lower():
+                                await self.highrise.teleport(u.id, admin_pos)
+                                break
 
-            # 📍 POSITION SETUP
-            elif msg.startswith("!set "):
-                loc = msg.replace("!set ", "").strip()
-                curr = self.user_positions.get(user.username)
-                if curr and loc in ["f1", "f2", "f3", "admin_area", "vip_area"]:
-                    self.locations[loc] = curr
-                    self.save_data(self.loc_file, self.locations)
-                    await self.highrise.chat(f"📍 {loc} saved permanently!")
+                # 📍 POSITION SETTING
+                elif msg.startswith("!set "):
+                    loc_name = msg.replace("!set ", "").strip()
+                    admin_pos = None
+                    for uid, (uname, upos) in self.user_positions.items():
+                        if uname == user.username: admin_pos = upos
+                    
+                    if admin_pos and loc_name in ["f1", "f2", "f3", "admin_area"]:
+                        self.locations[loc_name] = admin_pos
+                        self.save_data(self.loc_file, self.locations)
+                        await self.highrise.chat(f"📍 {loc_name} Saved!")
 
-            # 👥 MANAGEMENT
-            elif msg.startswith("!add admin"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    new = parts[1].strip()
+                # 👥 MANAGEMENT
+                elif msg.startswith("!add admin"):
+                    new = msg.split("@")[-1].strip()
                     if new not in self.admins:
                         self.admins.append(new); self.save_data(self.filename, self.admins)
                         await self.highrise.chat(f"@{new} now have a admin power 👑")
 
-            elif msg.startswith("!remove admin"):
-                parts = message.split("@")
-                if len(parts) > 1:
-                    rem = parts[1].strip()
+                elif msg.startswith("!remove admin"):
+                    rem = msg.split("@")[-1].strip()
                     if rem in self.admins and rem != self.owner:
                         self.admins.remove(rem); self.save_data(self.filename, self.admins)
-                        await self.highrise.chat(f"@{user.username} your removed @{rem} from admin")
+                        await self.highrise.chat(f"🚫 Removed @{rem}")
 
-            elif msg == "!adminlist":
-                list_text = " , ".join([f"@{a}" for a in self.admins])
-                await self.highrise.chat(f"👥 Admins: {list_text}")
+                elif msg == "!adminlist":
+                    await self.highrise.chat(f"👥 Admins: {', '.join(['@'+a for a in self.admins])}")
 
-# --- 🚀 RUNNER ---
+            except Exception as e:
+                print(f"Error: {e}")
+
+# --- 🚀 RUN ---
 if __name__ == "__main__":
     from highrise import BotRunner
     r_id = os.environ.get('ROOM_ID', "69325fc85be7bfe87e2a172a")
